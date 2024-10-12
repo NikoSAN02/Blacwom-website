@@ -2,7 +2,7 @@
 const nextConfig = {
     reactStrictMode: true,
     images: {
-      domains: ['maroon-vital-bass-312.mypinata.cloud'],
+      domains: [process.env.NEXT_PUBLIC_IMAGE_DOMAIN],
     },
   }
   

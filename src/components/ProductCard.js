@@ -2,9 +2,11 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { useState } from 'react'
+import { useCart } from '../app/context/CartContext'
 
 export default function ProductCard({ product }) {
   const [imgSrc, setImgSrc] = useState(product.imageUrl || '/placeholder-image.jpg')
+  const { addToCart } = useCart();
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-lg">
@@ -23,9 +25,12 @@ export default function ProductCard({ product }) {
             ? `₹${product.Price.toFixed(2)}` 
             : 'Price not available'}
         </p>
-        <Link href={`/products/${product.id}`} className="mt-2 inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-          View Details
-        </Link>
+        <button 
+          onClick={() => addToCart(product)}
+          className="mt-2 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          Add to Cart
+        </button>
       </div>
     </div>
   )
