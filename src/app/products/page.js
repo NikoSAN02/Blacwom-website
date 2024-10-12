@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getProducts } from '../../lib/firebaseUtils';
+import { getProducts } from '../lib/firebaseUtils';
 import ProductCard from '../../components/ProductCard';
 
 export default function ProductsPage() {

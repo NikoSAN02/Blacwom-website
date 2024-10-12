@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getProductsByCategory } from '../../../lib/firebaseUtils';
+import { getProductsByCategory } from '../../lib/firebaseUtils';
 import ProductCard from '../../../components/ProductCard';
 
 export default function CategoryPage() {
