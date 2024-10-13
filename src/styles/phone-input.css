@@ -1,0 +1,37 @@
+.PhoneInput {
+    display: flex;
+    align-items: center;
+  }
+  
+  .PhoneInputCountry {
+    margin-right: 0.5rem;
+  }
+  
+  .PhoneInputInput {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .PhoneInputCountrySelect {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+    z-index: 1;
+    border: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  
+  .PhoneInputCountrySelectArrow {
+    display: block;
+    content: '';
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 5px 5px 0 5px;
+    border-color: #000 transparent transparent transparent;
+    margin-top: 4px;
+    margin-left: 4px;
+  }
