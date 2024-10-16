@@ -3,14 +3,22 @@
 import { useCart } from '../context/CartContext';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 export default function Cart() {
   const { cart, removeFromCart, updateQuantity } = useCart();
+  const router = useRouter();
 
+  // Calculate total, ensuring it's a number
   const total = cart.reduce((sum, item) => {
-    const price = typeof item.Price === 'number' ? item.Price : 0;
-    return sum + price * item.quantity;
+    const itemPrice = typeof item.Price === 'number' ? item.Price : 0;
+    const itemQuantity = typeof item.quantity === 'number' ? item.quantity : 0;
+    return sum + (itemPrice * itemQuantity);
   }, 0);
+
+  const handleCheckout = () => {
+    router.push('/checkout');
+  };
 
   if (cart.length === 0) {
     return (
@@ -66,7 +74,10 @@ export default function Cart() {
       ))}
       <div className="mt-8">
         <h2 className="text-xl font-bold">Total: ₹{total.toFixed(2)}</h2>
-        <button className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+        <button 
+          onClick={handleCheckout}
+          className="mt-4 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
           Proceed to Checkout
         </button>
       </div>
