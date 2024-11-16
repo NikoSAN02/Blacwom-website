@@ -11,6 +11,8 @@ import SignInModal from './SignInModal'
 import SignUpModal from './SignUpModal'
 import PasswordResetModal from './PasswordResetModal'
 
+const ADMIN_EMAILS = ['blacwom01@gmail.com'];
+
 export default function Header() {
   const { cart } = useCart();
   const { user } = useAuth();
@@ -18,12 +20,14 @@ export default function Header() {
   const [isSignInModalOpen, setIsSignInModalOpen] = useState(false);
   const [isSignUpModalOpen, setIsSignUpModalOpen] = useState(false);
   const [isPasswordResetModalOpen, setIsPasswordResetModalOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const itemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   const handleSignOut = async () => {
     try {
       await signOut(auth);
+      setIsDropdownOpen(false);
       router.push('/');
     } catch (error) {
       console.error('Error signing out:', error);
@@ -39,6 +43,12 @@ export default function Header() {
   const handleForgotPassword = () => {
     setIsSignInModalOpen(false);
     setIsPasswordResetModalOpen(true);
+  };
+
+  const isAdmin = user && ADMIN_EMAILS.includes(user.email);
+
+  const handleLinkClick = () => {
+    setIsDropdownOpen(false);
   };
 
   return (
@@ -62,21 +72,59 @@ export default function Header() {
               <Link href="/packages" className="text-gray-600 hover:text-gray-800">
                 Packages
               </Link>
+              {user && (
+                <Link href="/orders" className="text-gray-600 hover:text-gray-800">
+                  My Orders
+                </Link>
+              )}
               <Link href="/cart" className="text-gray-600 hover:text-gray-800">
                 Cart ({itemCount})
               </Link>
               {user ? (
-                <>
-                  <Link href="/profile" className="text-gray-600 hover:text-gray-800">
-                    {getShortenedEmail(user.email)}
-                  </Link>
+                <div className="relative">
                   <button
-                    onClick={handleSignOut}
-                    className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="text-gray-600 hover:text-gray-800 focus:outline-none"
                   >
-                    Sign Out
+                    {getShortenedEmail(user.email)}
                   </button>
-                </>
+                  {isDropdownOpen && (
+                    <div 
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50"
+                      onMouseLeave={() => setIsDropdownOpen(false)}
+                    >
+                      <Link 
+                        href="/profile" 
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={handleLinkClick}
+                      >
+                        Profile
+                      </Link>
+                      {isAdmin && (
+                        <Link 
+                          href="/admin/orders" 
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                          onClick={handleLinkClick}
+                        >
+                          Admin Dashboard
+                        </Link>
+                      )}
+                      <Link 
+                        href="/orders" 
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={handleLinkClick}
+                      >
+                        My Orders
+                      </Link>
+                      <button
+                        onClick={handleSignOut}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <>
                   <button
