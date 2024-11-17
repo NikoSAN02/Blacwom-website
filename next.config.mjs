@@ -14,6 +14,15 @@ const nextConfig = {
     };
     return config;
   },
+  images: {
+    domains: [
+      'maroon-vital-bass-312.mypinata.cloud',
+      'm.media-amazon.com',
+      'images-na.ssl-images-amazon.com',
+      'images.unsplash.com',
+      'media.amazon.com'
+    ],
+  },
 };
 
 export default nextConfig;

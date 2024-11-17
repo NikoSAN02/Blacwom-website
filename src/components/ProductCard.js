@@ -10,14 +10,15 @@ export default function ProductCard({ product }) {
 
   return (
     <div className="border rounded-lg overflow-hidden shadow-lg">
-      <Image 
-        src={imgSrc}
-        alt={product.Name || 'Product image'}
-        width={300} 
-        height={300} 
-        className="w-full h-48 object-cover"
-        onError={() => setImgSrc('/placeholder-image.jpg')}
-      />
+       <div className="aspect-square relative"> {/* Uses 1:1 aspect ratio */}
+        <Image 
+          src={product.imageUrl || '/placeholder-image.jpg'} 
+          alt={product.Name || 'Product image'} 
+          fill
+          className="object-contain p-4"
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+        />
+      </div>
       <div className="p-4">
         <h2 className="text-lg font-semibold">{product.Name || 'Unnamed Product'}</h2>
         <p className="text-gray-600">
