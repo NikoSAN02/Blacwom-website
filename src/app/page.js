@@ -21,7 +21,7 @@ export default async function Home() {
           <h1 className="text-4xl font-bold mb-4">ULTIMATE SALE</h1>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <img src="/mainpage/360_F_706253053_EgZZT1UGDZkS88OHgX9QCAABBGSXfAk0.jpg" alt="Model 1" className="rounded-xl" />
-            <img src="/mainpage/fashion-beauty-2000-679a489d97f74967a26d0e2acab702b4.jpg" alt="Model 2" className="rounded-xl" />
+            <img src="/mainpage/1703935772.jpg" alt="Model 2" className="rounded-xl" />
             <img src="/mainpage/gettyimages-942952390_sf.webp" alt="Model 3" className="rounded-xl" />
           </div>
         </div>
