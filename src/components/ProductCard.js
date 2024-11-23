@@ -41,7 +41,7 @@ export default function ProductCard({ product }) {
         <div className="flex items-center justify-between mt-2">
           <p className="text-lg font-semibold text-gray-900">
             {typeof product.Price === 'number' 
-              ? `$${product.Price.toFixed(2)}` 
+              ? `₹${product.Price.toFixed(2)}` 
               : 'Price not available'}
           </p>
           {product.stock <= 10 && (
