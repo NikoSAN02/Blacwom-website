@@ -132,12 +132,12 @@ export default function Header() {
                     >
                       Sign in
                     </button>
-                    <button
-                      onClick={() => setIsSignUpModalOpen(true)}
+                    <Link
+                      href="/auth/signup"
                       className="bg-[#BBA7FF] hover:bg-[#A389FF] text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
                     >
                       Sign Up
-                    </button>
+                    </Link>
                   </>
                 )}
                 <Link href="/cart" className="text-gray-600 hover:text-gray-800 relative bg-[#BBA7FF] p-2 rounded-[10px] mr-2 sm:mr-4">
@@ -200,7 +200,7 @@ export default function Header() {
             ) : (
               <>
                 <button onClick={() => { setIsSignInModalOpen(true); setIsMobileMenuOpen(false); }} className="block w-full text-center py-3 text-gray-600 hover:text-gray-800 border-b border-gray-100 last:border-b-0 text-lg font-medium transition-colors duration-200">Sign in</button>
-                <button onClick={() => { setIsSignUpModalOpen(true); setIsMobileMenuOpen(false); }} className="block w-full text-center py-3 text-gray-600 hover:text-gray-800 border-b border-gray-100 last:border-b-0 text-lg font-medium transition-colors duration-200">Sign Up</button>
+                <Link href="/auth/signup" onClick={() => setIsMobileMenuOpen(false)} className="block w-full text-center py-3 text-gray-600 hover:text-gray-800 border-b border-gray-100 last:border-b-0 text-lg font-medium transition-colors duration-200">Sign Up</Link>
               </>
             )}
           </div>

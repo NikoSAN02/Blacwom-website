@@ -7,7 +7,10 @@ import { collection, query, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import CancelOrderModal from '../../../components/CancelOrderModal';
 
-const ADMIN_EMAILS = ['blacwom01@gmail.com']; // Add your admin emails here
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+
+const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || []; 
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
@@ -100,6 +103,15 @@ export default function AdminDashboard() {
 
   return (
     <div className="container mx-auto mt-10 p-6">
+       <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+        <Link 
+          href="/admin/upload"
+          className="bg-[#BBA7FF] text-white px-4 py-2 rounded-lg hover:bg-[#A389FF] transition-colors"
+        >
+          Bulk Upload Products
+        </Link>
+      </div>
       <h1 className="text-3xl font-bold mb-6">Order Management</h1>
       <div className="overflow-x-auto">
         <table className="min-w-full bg-white border rounded-lg">

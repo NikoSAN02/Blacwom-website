@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { db } from '../lib/firebase';
+import { db } from '../app/lib/firebase';
 import { collection, addDoc, writeBatch } from 'firebase/firestore';
 import * as XLSX from 'xlsx';
 
