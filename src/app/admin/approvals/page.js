@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { db } from '../../../lib/firebase';
+import { db } from '../../../app/lib/firebase';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 
 export default function AdminApprovals() {
