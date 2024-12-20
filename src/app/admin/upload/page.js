@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter } from 'next/navigation';
 import BulkUpload from '../../../components/BulkUpload';
+import Link from "next/link";
 
 export default function AdminUploadPage() {
   const { user } = useAuth();

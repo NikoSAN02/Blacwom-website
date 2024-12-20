@@ -2,6 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from 'firebase/firestore';
 import { getAuth, PhoneAuthProvider, signInWithCredential } from 'firebase/auth';
+import { getStorage } from 'firebase/storage';
 
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -23,5 +24,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
+const storage = getStorage(app);
 
-export { auth, db, PhoneAuthProvider, signInWithCredential };
+// Set CORS headers
+storage._customUrlOrRegion = {
+  customDomain: `${firebaseConfig.storageBucket}`,
+  cors: {
+    origin: ['http://localhost:3000'],
+    methods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD', 'OPTIONS'],
+    allowedHeaders: ['Content-Type']
+  }
+};
+
+export { auth, db, storage, PhoneAuthProvider, signInWithCredential };

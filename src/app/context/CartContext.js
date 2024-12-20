@@ -1,39 +1,67 @@
-"use client"
-import React, { createContext, useContext, useState } from 'react';
+'use client';
+
+import { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
+  const { user } = useAuth();
 
-  const addToCart = (product) => {
-    setCart(currentCart => {
-      const existingItem = currentCart.find(item => item.id === product.id);
-      if (existingItem) {
-        return currentCart.map(item => 
-          item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
-      }
-      return [...currentCart, { ...product, quantity: 1 }];
-    });
+  useEffect(() => {
+    if (user) {
+      fetchCart();
+    }
+  }, [user]);
+
+  const fetchCart = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select(`
+          *,
+          product:products(*)
+        `)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setCart(data.map(item => ({
+        ...item.product,
+        quantity: item.quantity
+      })));
+    } catch (error) {
+      console.error('Error fetching cart:', error);
+    }
   };
 
-  const removeFromCart = (productId) => {
-    setCart(currentCart => currentCart.filter(item => item.id !== productId));
+  const addToCart = async (product) => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .upsert({
+          user_id: user.id,
+          product_id: product.id,
+          quantity: 1
+        }, {
+          onConflict: 'user_id,product_id'
+        })
+        .select();
+
+      if (error) throw error;
+      fetchCart();
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    }
   };
 
-  const updateQuantity = (productId, newQuantity) => {
-    setCart(currentCart => currentCart.map(item => 
-      item.id === productId ? { ...item, quantity: newQuantity } : item
-    ));
-  };
-
-  const clearCart = () => {
-    setCart([]);
-  };
+  // Add other cart functions...
 
   return (
-    <CartContext.Provider value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart }}>
+    <CartContext.Provider value={{ cart, addToCart }}>
       {children}
     </CartContext.Provider>
   );

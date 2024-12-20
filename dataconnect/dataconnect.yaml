@@ -1,0 +1,12 @@
+specVersion: "v1beta"
+serviceId: "blacwom-website"
+location: "asia-south1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "fdcdb"
+      cloudSql:
+        instanceId: "blacwom-website-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

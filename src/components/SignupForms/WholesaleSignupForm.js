@@ -1,28 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../../lib/firebase';
+import { supabase } from '../../app/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function WholesaleSignupForm() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
     gst: '',
-    images: []
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    if (e.target.name === 'images') {
-      setFormData({ ...formData, images: Array.from(e.target.files) });
-    } else {
-      setFormData({ ...formData, [e.target.name]: e.target.value });
-    }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const validateGST = (gst) => {
+    // Add your GST validation logic here
+    return gst && gst.trim().length > 0;
   };
 
   const handleSubmit = async (e) => {
@@ -36,43 +35,59 @@ export default function WholesaleSignupForm() {
       return;
     }
 
-    if (!formData.gst) {
-      setError('GST number is required');
-      setLoading(false);
-      return;
-    }
-
-    if (formData.images.length < 2) {
-      setError('Please upload at least 2 shop images');
+    if (!validateGST(formData.gst)) {
+      setError('Please enter a valid GST number');
       setLoading(false);
       return;
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        formData.email, 
-        formData.password
-      );
-
-      const imageUrls = await Promise.all(
-        formData.images.map(async (image) => {
-          const storageRef = ref(storage, `wholesale/${userCredential.user.uid}/${image.name}`);
-          await uploadBytes(storageRef, image);
-          return getDownloadURL(storageRef);
-        })
-      );
-
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        userType: 'wholesale',
-        gst: formData.gst,
-        images: imageUrls,
-        createdAt: new Date(),
-        status: 'pending'
+        password: formData.password,
+        options: {
+          data: {
+            user_type: 'wholesale'
+          }
+        }
       });
 
+      if (authError) throw authError;
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: formData.email,
+          user_type: 'wholesale',
+          gst: formData.gst,
+          status: 'pending'
+        });
+
+      if (profileError) throw profileError;
+
+      // Send verification email
+      const emailResponse = await fetch('/api/send-verification-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: formData.email,
+          userType: 'wholesale',
+          gst: formData.gst
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        throw new Error('Failed to send verification email');
+      }
+
+      router.push('/signup-success');
     } catch (error) {
+      console.error('Signup error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -94,15 +109,21 @@ export default function WholesaleSignupForm() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">GST Number</label>
+        <label className="block text-sm font-medium text-gray-700">
+          GST Number <span className="text-red-500">*</span>
+        </label>
         <input
           type="text"
           name="gst"
           value={formData.gst}
           onChange={handleChange}
           required
+          placeholder="Enter your valid GST number"
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
         />
+        <p className="mt-1 text-sm text-gray-500">
+          You will need to provide shop images after registration via email
+        </p>
       </div>
       
       <div>
@@ -127,20 +148,6 @@ export default function WholesaleSignupForm() {
           required
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
         />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Shop Images (min 2)</label>
-        <input
-          type="file"
-          name="images"
-          onChange={handleChange}
-          multiple
-          accept="image/*"
-          required
-          className="mt-1 block w-full"
-        />
-        <p className="text-sm text-gray-500 mt-1">Please upload at least 2 images of your shop</p>
       </div>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}

@@ -1,11 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../lib/firebase';
+import { supabase } from '../../app/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function CustomerSignupForm() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -30,19 +30,32 @@ export default function CustomerSignupForm() {
     }
 
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        formData.email, 
-        formData.password
-      );
-
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        userType: 'customer',
-        createdAt: new Date(),
-        status: 'approved'
+        password: formData.password,
+        options: {
+          data: {
+            user_type: 'customer'
+          }
+        }
       });
 
+      if (authError) throw authError;
+
+      // Create user profile
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: formData.email,
+          user_type: 'customer',
+          status: 'approved'
+        });
+
+      if (profileError) throw profileError;
+
+      router.push('/signup-success');
     } catch (error) {
       setError(error.message);
     } finally {

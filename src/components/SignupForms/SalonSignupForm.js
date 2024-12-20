@@ -1,28 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../../lib/firebase';
+import { supabase } from '../../app/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export default function SalonSignupForm() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     confirmPassword: '',
-    gst: '',
-    images: []
+    salonName: '',
+    phoneNumber: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
-    if (e.target.name === 'images') {
-      setFormData({ ...formData, images: Array.from(e.target.files) });
-    } else {
-      setFormData({ ...formData, [e.target.name]: e.target.value });
-    }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
@@ -36,37 +31,56 @@ export default function SalonSignupForm() {
       return;
     }
 
-    if (formData.images.length < 2) {
-      setError('Please upload at least 2 salon images');
-      setLoading(false);
-      return;
-    }
-
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth, 
-        formData.email, 
-        formData.password
-      );
-
-      const imageUrls = await Promise.all(
-        formData.images.map(async (image) => {
-          const storageRef = ref(storage, `salon/${userCredential.user.uid}/${image.name}`);
-          await uploadBytes(storageRef, image);
-          return getDownloadURL(storageRef);
-        })
-      );
-
-      await setDoc(doc(db, 'users', userCredential.user.uid), {
+      // Create user account in Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        userType: 'salon',
-        gst: formData.gst,
-        images: imageUrls,
-        createdAt: new Date(),
-        status: 'pending'
+        password: formData.password,
+        options: {
+          data: {
+            user_type: 'salon', // Adding user_type in metadata
+            salon_name: formData.salonName,
+          }
+        }
       });
 
+      if (authError) throw authError;
+
+      // Create user profile in users table
+      const { error: profileError } = await supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          email: formData.email,
+          user_type: 'salon',
+          salon_name: formData.salonName,
+          phone_number: formData.phoneNumber,
+          status: 'pending'
+        });
+
+      if (profileError) throw profileError;
+
+      // Send verification email using your API route
+      const emailResponse = await fetch('/api/send-verification-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: formData.email,
+          userType: 'salon',
+          salonName: formData.salonName,
+          phoneNumber: formData.phoneNumber
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        throw new Error('Failed to send verification email');
+      }
+
+      router.push('/signup-success');
     } catch (error) {
+      console.error('Signup error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -75,6 +89,18 @@ export default function SalonSignupForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Salon Name</label>
+        <input
+          type="text"
+          name="salonName"
+          value={formData.salonName}
+          onChange={handleChange}
+          required
+          className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
+        />
+      </div>
+
       <div>
         <label className="block text-sm font-medium text-gray-700">Email</label>
         <input
@@ -88,12 +114,13 @@ export default function SalonSignupForm() {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">GST Number (Optional)</label>
+        <label className="block text-sm font-medium text-gray-700">Phone Number</label>
         <input
-          type="text"
-          name="gst"
-          value={formData.gst}
+          type="tel"
+          name="phoneNumber"
+          value={formData.phoneNumber}
           onChange={handleChange}
+          required
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
         />
       </div>
@@ -120,20 +147,6 @@ export default function SalonSignupForm() {
           required
           className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2"
         />
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700">Salon Images (min 2)</label>
-        <input
-          type="file"
-          name="images"
-          onChange={handleChange}
-          multiple
-          accept="image/*"
-          required
-          className="mt-1 block w-full"
-        />
-        <p className="text-sm text-gray-500 mt-1">Please upload at least 2 images of your salon</p>
       </div>
 
       {error && <p className="text-red-500 text-sm">{error}</p>}

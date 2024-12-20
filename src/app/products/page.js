@@ -1,19 +1,57 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getProducts } from '../lib/firebaseUtils';
+import { supabase } from '../lib/supabase';
 import ProductCard from '../../components/ProductCard';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     async function fetchProducts() {
-      const allProducts = await getProducts();
-      setProducts(allProducts);
+      try {
+        console.log('Fetching products...');
+        const { data, error } = await supabase
+          .from('products')
+          .select(`
+            id,
+            name,
+            brand,
+            customer_price,
+            wholesale_price,
+            salon_price,
+            image_url,
+            category,
+            description,
+            benefits,
+            suggested_use,
+            specifications,
+            stock
+          `);
+
+        if (error) {
+          console.error('Error fetching products:', error);
+          throw error;
+        }
+
+        console.log('Fetched products:', data);
+        setProducts(data);
+      } catch (error) {
+        console.error('Error:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
     }
+
     fetchProducts();
   }, []);
+
+  if (loading) return <div>Loading products...</div>;
+  if (error) return <div>Error loading products: {error}</div>;
+  if (products.length === 0) return <div>No products found</div>;
 
   return (
     <div>

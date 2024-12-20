@@ -14,7 +14,7 @@ export default function ProductDetailsModal({ isOpen, onClose, product }) {
         {/* Header */}
         <div className="flex justify-between items-start p-6 border-b">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{product.Name}</h2>
+            <h2 className="text-2xl font-bold text-gray-900">{product.name}</h2>
             <p className="text-gray-600 mt-1">{product.brand}</p>
           </div>
           <button 
@@ -72,7 +72,7 @@ export default function ProductDetailsModal({ isOpen, onClose, product }) {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <h3 className="text-lg font-semibold mb-2">Directions</h3>
                 <p className="text-gray-600 leading-relaxed">
-                  {product.suggestedUse}
+                  {product.suggested_use}
                 </p>
               </div>
             </div>
@@ -94,11 +94,11 @@ export default function ProductDetailsModal({ isOpen, onClose, product }) {
                 </div>
               </div>
 
-              {product.specifications?.hairType && (
+              {product.specifications?.hair_type && (
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Suitable For</h3>
                   <div className="flex flex-wrap gap-2">
-                    {product.specifications.hairType.map((type, index) => (
+                    {product.specifications.hair_type.map((type, index) => (
                       <span 
                         key={index}
                         className="bg-[#BBA7FF]/10 text-[#BBA7FF] px-3 py-1 rounded-full text-sm"
@@ -126,11 +126,11 @@ export default function ProductDetailsModal({ isOpen, onClose, product }) {
                 </div>
               )}
 
-              {product.specifications?.keyIngredients && (
+              {product.specifications?.key_ingredients && (
                 <div>
                   <h3 className="font-semibold text-lg mb-2">Key Ingredients</h3>
                   <ul className="list-disc pl-5 space-y-1">
-                    {product.specifications.keyIngredients.map((ingredient, index) => (
+                    {product.specifications.key_ingredients.map((ingredient, index) => (
                       <li key={index} className="text-gray-600">
                         {ingredient}
                       </li>
