@@ -1,6 +1,9 @@
 'use client';
 
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
+import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -8,10 +11,43 @@ import { Minus, Plus, X } from 'lucide-react';
 
 export default function Cart() {
   const { cart, removeFromCart, updateQuantity } = useCart();
+  const { user } = useAuth();
+  const [userType, setUserType] = useState(null);
   const router = useRouter();
 
+  useEffect(() => {
+    const fetchUserType = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('user_type')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && data) {
+          setUserType(data.user_type);
+        }
+      }
+    };
+
+    fetchUserType();
+  }, [user]);
+
+  const getItemPrice = (item) => {
+    if (!user) return item.customer_price;
+
+    switch (userType) {
+      case 'wholesale':
+        return item.wholesale_price;
+      case 'salon':
+        return item.salon_price;
+      default:
+        return item.customer_price;
+    }
+  };
+
   const total = cart.reduce((sum, item) => {
-    const itemPrice = typeof item.Price === 'number' ? item.Price : 0;
+    const itemPrice = getItemPrice(item);
     const itemQuantity = typeof item.quantity === 'number' ? item.quantity : 0;
     return sum + (itemPrice * itemQuantity);
   }, 0);
@@ -46,15 +82,15 @@ export default function Cart() {
             >
               <div className="relative w-full sm:w-32 h-32">
                 <Image 
-                  src={item.imageUrl || '/placeholder.svg'} 
-                  alt={item.Name || 'Product image'} 
+                  src={item.image_url || '/placeholder.svg'} 
+                  alt={item.name || 'Product image'} 
                   fill
                   className="object-contain rounded-xl"
                 />
               </div>
               <div className="flex-grow space-y-3">
                 <div className="flex justify-between items-start">
-                  <h2 className="text-lg font-medium">{item.Name || 'Unnamed Product'}</h2>
+                  <h2 className="text-lg font-medium">{item.name || 'Unnamed Product'}</h2>
                   <button 
                     onClick={() => removeFromCart(item.id)}
                     className="text-gray-400 hover:text-red-500 transition-colors p-1"
@@ -64,10 +100,15 @@ export default function Cart() {
                   </button>
                 </div>
                 <p className="text-gray-600 font-medium">
-                  {typeof item.Price === 'number' 
-                    ? `₹${item.Price.toFixed(2)}` 
+                  {typeof getItemPrice(item) === 'number' 
+                    ? `₹${getItemPrice(item).toFixed(2)}` 
                     : 'Price not available'}
                 </p>
+                {userType && userType !== 'customer' && (
+                  <p className="text-sm text-green-600">
+                    {userType === 'wholesale' ? 'Wholesale' : 'Salon'} Price
+                  </p>
+                )}
                 <div className="flex items-center space-x-3 bg-gray-50 w-fit rounded-lg p-1">
                   <button 
                     onClick={() => updateQuantity(item.id, Math.max(1, item.quantity - 1))}
@@ -124,4 +165,3 @@ export default function Cart() {
     </div>
   );
 }
-

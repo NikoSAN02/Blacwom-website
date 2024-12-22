@@ -1,16 +1,8 @@
- 'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { db } from '../lib/firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  doc, 
-  updateDoc 
-} from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import CancelOrderModal from '../../components/CancelOrderModal';
 
@@ -26,17 +18,15 @@ export default function OrdersPage() {
       if (!user) return;
 
       try {
-        const q = query(
-          collection(db, 'orders'),
-          where('userId', '==', user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        const ordersData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()
-        }));
-        setOrders(ordersData.sort((a, b) => b.createdAt - a.createdAt));
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        setOrders(data || []);
       } catch (error) {
         console.error('Error fetching orders:', error);
       } finally {
@@ -49,13 +39,18 @@ export default function OrdersPage() {
 
   const handleCancelOrder = async (orderId, reason) => {
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        status: 'cancelled',
-        cancellationReason: reason,
-        cancelledAt: new Date(),
-        cancelledBy: user.email
-      });
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: user.email
+        })
+        .eq('id', orderId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
       
       // Update the local state
       setOrders(orders.map(order => 
@@ -63,9 +58,9 @@ export default function OrdersPage() {
           ? { 
               ...order, 
               status: 'cancelled',
-              cancellationReason: reason,
-              cancelledAt: new Date(),
-              cancelledBy: user.email
+              cancellation_reason: reason,
+              cancelled_at: new Date().toISOString(),
+              cancelled_by: user.email
             }
           : order
       ));
@@ -94,9 +89,9 @@ export default function OrdersPage() {
             <div key={order.id} className="border rounded-lg p-6 shadow-sm">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold">Order #{order.id.slice(0, 8)}</h2>
+                  <h2 className="text-lg font-semibold">Order #{order.order_number}</h2>
                   <p className="text-gray-600">
-                    {format(order.createdAt, 'MMM dd, yyyy HH:mm')}
+                    {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
                   </p>
                 </div>
                 <div className="text-right">
@@ -123,11 +118,10 @@ export default function OrdersPage() {
                   )}
                 </div>
               </div>
-              {/* ... (rest of the order details remain the same) ... */}
-              {order.status === 'cancelled' && order.cancellationReason && (
+              {order.status === 'cancelled' && order.cancellation_reason && (
                 <div className="mt-4 p-4 bg-red-50 rounded-md">
                   <p className="text-red-700 font-medium">Cancellation Reason:</p>
-                  <p className="text-red-600">{order.cancellationReason}</p>
+                  <p className="text-red-600">{order.cancellation_reason}</p>
                 </div>
               )}
             </div>

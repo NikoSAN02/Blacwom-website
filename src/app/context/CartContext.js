@@ -1,67 +1,66 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
-import { useAuth } from './AuthContext';
 
 const CartContext = createContext();
 
 export function CartProvider({ children }) {
   const [cart, setCart] = useState([]);
-  const { user } = useAuth();
 
+  // Load cart from localStorage on initial load
   useEffect(() => {
-    if (user) {
-      fetchCart();
+    const savedCart = localStorage.getItem('cart');
+    if (savedCart) {
+      setCart(JSON.parse(savedCart));
     }
-  }, [user]);
+  }, []);
 
-  const fetchCart = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('cart_items')
-        .select(`
-          *,
-          product:products(*)
-        `)
-        .eq('user_id', user.id);
+  // Save cart to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('cart', JSON.stringify(cart));
+  }, [cart]);
 
-      if (error) throw error;
-      setCart(data.map(item => ({
-        ...item.product,
-        quantity: item.quantity
-      })));
-    } catch (error) {
-      console.error('Error fetching cart:', error);
-    }
+  const addToCart = (product) => {
+    setCart(prevCart => {
+      const existingItem = prevCart.find(item => item.id === product.id);
+      if (existingItem) {
+        return prevCart.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...prevCart, { ...product, quantity: 1 }];
+    });
   };
 
-  const addToCart = async (product) => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('cart_items')
-        .upsert({
-          user_id: user.id,
-          product_id: product.id,
-          quantity: 1
-        }, {
-          onConflict: 'user_id,product_id'
-        })
-        .select();
-
-      if (error) throw error;
-      fetchCart();
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    }
+  const removeFromCart = (productId) => {
+    setCart(prevCart => prevCart.filter(item => item.id !== productId));
   };
 
-  // Add other cart functions...
+  const updateQuantity = (productId, quantity) => {
+    setCart(prevCart =>
+      prevCart.map(item =>
+        item.id === productId
+          ? { ...item, quantity: quantity }
+          : item
+      )
+    );
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    localStorage.removeItem('cart'); // Also clear from localStorage
+  };
 
   return (
-    <CartContext.Provider value={{ cart, addToCart }}>
+    <CartContext.Provider value={{
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart // Make sure clearCart is included here
+    }}>
       {children}
     </CartContext.Provider>
   );

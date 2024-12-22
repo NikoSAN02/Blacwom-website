@@ -4,28 +4,24 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
-import { useCart } from '../context/CartContext';
-import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { useCart } from '../context/CartContext'; // Make sure this import is correct
+import { supabase } from '../lib/supabase';
 
 export default function OrderConfirmation() {
   const [orderDetails, setOrderDetails] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
-  const { clearCart } = useCart();
+  const { clearCart } = useCart(); // Make sure useCart is being used correctly
   const router = useRouter();
   const orderFetched = useRef(false);
 
   useEffect(() => {
-    console.log('Order Confirmation useEffect triggered');
-    
     const fetchOrderDetails = async () => {
       if (orderFetched.current) return;
 
       const orderId = localStorage.getItem('lastOrderId');
-      console.log('Order ID from localStorage:', orderId);
-
+      
       if (!user || !orderId) {
         setError('No order found. Please try again.');
         setIsLoading(false);
@@ -33,13 +29,24 @@ export default function OrderConfirmation() {
       }
 
       try {
-        const orderDoc = await getDoc(doc(db, 'orders', orderId));
-        if (orderDoc.exists()) {
-          console.log('Order found:', orderDoc.data());
-          setOrderDetails({ ...orderDoc.data(), id: orderId });
-          clearCart();
+        const { data: order, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (
+              *,
+              product:products (*)
+            )
+          `)
+          .eq('id', orderId)
+          .single();
+
+        if (error) throw error;
+
+        if (order) {
+          setOrderDetails(order);
+          clearCart(); // This should now work
         } else {
-          console.log('Order not found in Firestore');
           setError('Order not found. Please contact customer support.');
         }
       } catch (error) {
@@ -55,8 +62,6 @@ export default function OrderConfirmation() {
     fetchOrderDetails();
   }, [user, clearCart]);
 
-  console.log('Render state:', { isLoading, error, orderDetails });
-
   if (isLoading) {
     return <div className="container mx-auto mt-10 p-6 bg-white rounded-lg shadow-md text-center">Loading...</div>;
   }
@@ -65,7 +70,7 @@ export default function OrderConfirmation() {
     return (
       <div className="container mx-auto mt-10 p-6 bg-white rounded-lg shadow-md text-center">
         <p className="text-red-500 mb-4">{error}</p>
-        <Link href="/" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        <Link href="/" className="bg-[#BBA7FF] hover:bg-[#A389FF] text-white font-bold py-2 px-4 rounded">
           Return to Home
         </Link>
       </div>
@@ -76,7 +81,7 @@ export default function OrderConfirmation() {
     return (
       <div className="container mx-auto mt-10 p-6 bg-white rounded-lg shadow-md text-center">
         <p className="mb-4">No order details found.</p>
-        <Link href="/" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        <Link href="/" className="bg-[#BBA7FF] hover:bg-[#A389FF] text-white font-bold py-2 px-4 rounded">
           Return to Home
         </Link>
       </div>
@@ -88,14 +93,14 @@ export default function OrderConfirmation() {
       <h1 className="text-3xl font-bold mb-6 text-center">Order Confirmation</h1>
       <div className="text-center mb-6">
         <p className="text-xl mb-2">Thank you for your order!</p>
-        <p className="text-lg">Your order number is: <span className="font-bold">{orderDetails.id}</span></p>
+        <p className="text-lg">Your order number is: <span className="font-bold">#{orderDetails.order_number}</span></p>
       </div>
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-4">Order Summary</h2>
-        {orderDetails.items.map((item) => (
+        {orderDetails.order_items.map((item) => (
           <div key={item.id} className="flex justify-between items-center mb-2">
-            <span>{item.Name} x {item.quantity}</span>
-            <span>₹{(item.Price * item.quantity).toFixed(2)}</span>
+            <span>{item.product.name} x {item.quantity}</span>
+            <span>₹{(item.price * item.quantity).toFixed(2)}</span>
           </div>
         ))}
         <div className="border-t pt-2 mt-2">
@@ -113,7 +118,7 @@ export default function OrderConfirmation() {
       </div>
       <div className="text-center">
         <p className="mb-4">We'll send you an email with your order details and tracking information once your order ships.</p>
-        <Link href="/" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        <Link href="/" className="bg-[#BBA7FF] hover:bg-[#A389FF] text-white font-bold py-2 px-4 rounded">
           Continue Shopping
         </Link>
       </div>

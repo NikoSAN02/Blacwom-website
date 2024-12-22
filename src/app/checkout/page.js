@@ -3,20 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { db } from '../lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { supabase } from '../lib/supabase';
 import { useRouter } from 'next/navigation';
 import { MapPin, CreditCard, ShoppingBag } from 'lucide-react';
-
-// Function to generate a random order ID
-const generateOrderId = () => {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-};
 
 export default function CheckoutPage() {
   const { user } = useAuth();
   const { cart } = useCart();
   const router = useRouter();
+  const [userType, setUserType] = useState(null);
 
   const [address, setAddress] = useState({
     street: '',
@@ -27,25 +22,58 @@ export default function CheckoutPage() {
   });
   const [saveAddress, setSaveAddress] = useState(false);
   const [error, setError] = useState('');
-
-  const total = cart.reduce((sum, item) => {
-    const itemPrice = typeof item.Price === 'number' ? item.Price : 0;
-    const itemQuantity = typeof item.quantity === 'number' ? item.quantity : 0;
-    return sum + (itemPrice * itemQuantity);
-  }, 0);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
       fetchSavedAddress();
+      fetchUserType();
     }
   }, [user]);
 
+  const fetchUserType = async () => {
+    if (user) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('user_type')
+        .eq('id', user.id)
+        .single();
+
+      if (!error && data) {
+        setUserType(data.user_type);
+      }
+    }
+  };
+
+  const getItemPrice = (item) => {
+    if (!user) return item.customer_price;
+
+    switch (userType) {
+      case 'wholesale':
+        return item.wholesale_price;
+      case 'salon':
+        return item.salon_price;
+      default:
+        return item.customer_price;
+    }
+  };
+
+  const total = cart.reduce((sum, item) => {
+    const itemPrice = getItemPrice(item);
+    const itemQuantity = typeof item.quantity === 'number' ? item.quantity : 0;
+    return sum + (itemPrice * itemQuantity);
+  }, 0);
+
   const fetchSavedAddress = async () => {
     if (user) {
-      const userDocRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userDocRef);
-      if (userDoc.exists() && userDoc.data().address) {
-        setAddress(userDoc.data().address);
+      const { data, error } = await supabase
+        .from('users')
+        .select('address')
+        .eq('id', user.id)
+        .single();
+
+      if (!error && data?.address) {
+        setAddress(data.address);
       }
     }
   };
@@ -58,46 +86,62 @@ export default function CheckoutPage() {
   const handleCheckout = async (e) => {
     e.preventDefault();
     setError('');
-  
+    setLoading(true);
+
     if (!user) {
-      console.log('User not logged in, redirecting to auth page');
       router.push('/auth');
       return;
     }
-  
+
     try {
-      console.log('Starting checkout process');
-  
+      // Save address if requested
       if (saveAddress) {
-        console.log('Saving address');
-        const userDocRef = doc(db, 'users', user.uid);
-        await setDoc(userDocRef, { address }, { merge: true });
+        const { error: addressError } = await supabase
+          .from('users')
+          .update({ address })
+          .eq('id', user.id);
+
+        if (addressError) throw addressError;
       }
-      
-      const orderId = generateOrderId();
-      console.log('Generated Order ID:', orderId);
-  
-      console.log('Creating order in Firestore');
-      await setDoc(doc(db, 'orders', orderId), {
-        userId: user.uid,
-        items: cart,
-        total: total,
-        address: address,
-        createdAt: new Date()
-      });
-      
-      console.log("Order created with ID: ", orderId);
-      
-      localStorage.setItem('lastOrderId', orderId);
-      
-      console.log('Redirecting to order confirmation page');
-      // Add a small delay before redirecting
-      setTimeout(() => {
-        router.push('/order-confirmation');
-      }, 100);
+
+      // Create order
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          total: total,
+          address: address,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Create order items with correct pricing
+      const orderItems = cart.map(item => ({
+        order_id: orderData.id,
+        product_id: item.id,
+        quantity: item.quantity,
+        price: getItemPrice(item)
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Store order ID for confirmation page
+      localStorage.setItem('lastOrderId', orderData.id);
+
+      // Redirect to confirmation page
+      router.push('/order-confirmation');
     } catch (error) {
       console.error("Error during checkout:", error);
       setError('An error occurred during checkout. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -219,11 +263,16 @@ export default function CheckoutPage() {
               {cart.map((item) => (
                 <div key={item.id} className="flex justify-between items-center">
                   <div>
-                    <p className="font-medium">{item.Name || 'Unnamed Product'}</p>
+                    <p className="font-medium">{item.name || 'Unnamed Product'}</p>
                     <p className="text-sm text-gray-600">Quantity: {item.quantity}</p>
+                    {userType && userType !== 'customer' && (
+                      <p className="text-sm text-green-600">
+                        {userType === 'wholesale' ? 'Wholesale' : 'Salon'} Price
+                      </p>
+                    )}
                   </div>
                   <p className="font-medium">
-                    ₹{((item.Price || 0) * (item.quantity || 0)).toFixed(2)}
+                    ₹{(getItemPrice(item) * (item.quantity || 0)).toFixed(2)}
                   </p>
                 </div>
               ))}
@@ -236,9 +285,10 @@ export default function CheckoutPage() {
             </div>
             <button
               onClick={handleCheckout}
-              className="w-full bg-[#B388FF] hover:bg-[#9B6BFF] text-white py-3 px-6 rounded-xl font-medium transition-colors"
+              disabled={loading}
+              className="w-full bg-[#BBA7FF] hover:bg-[#9B6BFF] text-white py-3 px-6 rounded-xl font-medium transition-colors disabled:opacity-50"
             >
-              Complete Checkout
+              {loading ? 'Processing...' : 'Complete Checkout'}
             </button>
           </div>
         </div>
@@ -246,4 +296,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-

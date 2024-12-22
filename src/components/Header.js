@@ -11,7 +11,7 @@ import SignInModal from './SignInModal'
 import SignUpModal from './SignUpModal'
 import PasswordResetModal from './PasswordResetModal'
 
-const ADMIN_EMAILS = ['blacwom01@gmail.com'];
+const ADMIN_EMAILS = ['glideglam33@gmail.com'];
 
 export default function Header() {
  const { cart } = useCart();
