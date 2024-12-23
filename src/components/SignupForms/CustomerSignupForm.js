@@ -63,6 +63,9 @@ export default function CustomerSignupForm() {
     }
   };
 
+
+
+  
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>

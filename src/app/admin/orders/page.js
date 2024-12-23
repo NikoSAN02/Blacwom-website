@@ -2,22 +2,22 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { db } from '../../lib/firebase';
-import { collection, query, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import CancelOrderModal from '../../../components/CancelOrderModal';
-
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
-const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || []; 
+const ADMIN_EMAILS = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',') || [];
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showTrackingModal, setShowTrackingModal] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState(null);
+  const [trackingId, setTrackingId] = useState('');
   const { user } = useAuth();
 
   useEffect(() => {
@@ -29,14 +29,19 @@ export default function AdminDashboard() {
       }
 
       try {
-        const q = query(collection(db, 'orders'));
-        const querySnapshot = await getDocs(q);
-        const ordersData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate()
-        }));
-        setOrders(ordersData.sort((a, b) => b.createdAt - a.createdAt));
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            user:users!orders_user_id_fkey (
+              email
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (ordersError) throw ordersError;
+
+        setOrders(ordersData);
       } catch (error) {
         console.error('Error fetching orders:', error);
         setError('Failed to fetch orders');
@@ -50,47 +55,160 @@ export default function AdminDashboard() {
 
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        status: newStatus,
-        updatedAt: new Date(),
-        updatedBy: user.email
-      });
+      if (newStatus === 'shipped') {
+        setSelectedOrderId(orderId);
+        setShowTrackingModal(true);
+        return;
+      }
+  
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+          updated_by: user.email
+        })
+        .eq('id', orderId);
+  
+      if (updateError) throw updateError;
       
-      setOrders(orders.map(order => 
+      // If status is changed to delivered, send email
+      if (newStatus === 'delivered') {
+        const orderToUpdate = orders.find(order => order.id === orderId);
+        if (orderToUpdate && orderToUpdate.user?.email) {
+          try {
+            const emailResponse = await fetch('/api/send-verification-email', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                to: orderToUpdate.user.email,
+                orderNumber: orderToUpdate.order_number,
+                isDeliveryNotification: true
+              }),
+            });
+      
+            if (!emailResponse.ok) {
+              console.error('Failed to send delivery email');
+            }
+          } catch (emailError) {
+            console.error('Error sending delivery email:', emailError);
+          }
+        }
+      }
+      // Update local state
+      setOrders(prevOrders => prevOrders.map(order => 
         order.id === orderId 
-          ? { ...order, status: newStatus, updatedAt: new Date(), updatedBy: user.email }
+          ? { 
+              ...order, 
+              status: newStatus, 
+              updated_at: new Date().toISOString(), 
+              updated_by: user.email 
+            }
           : order
       ));
     } catch (error) {
       console.error('Error updating order status:', error);
     }
   };
+  const handleTrackingSubmit = async () => {
+    try {
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({
+          status: 'shipped',
+          tracking_id: trackingId,
+          updated_at: new Date().toISOString(),
+          updated_by: user.email
+        })
+        .eq('id', selectedOrderId);
+
+      if (updateError) throw updateError;
+
+      setOrders(prevOrders => prevOrders.map(order => 
+        order.id === selectedOrderId 
+          ? { 
+              ...order, 
+              status: 'shipped',
+              tracking_id: trackingId,
+              updated_at: new Date().toISOString(), 
+              updated_by: user.email 
+            }
+          : order
+      ));
+
+      setShowTrackingModal(false);
+      setTrackingId('');
+      setSelectedOrderId(null);
+    } catch (error) {
+      console.error('Error updating tracking ID:', error);
+    }
+  };
 
   const handleCancelOrder = async (orderId, reason) => {
     try {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
-        status: 'cancelled',
-        cancellationReason: reason,
-        cancelledAt: new Date(),
-        cancelledBy: user.email
-      });
+      const { error: cancelError } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: reason,
+          cancelled_at: new Date().toISOString(),
+          cancelled_by: user.email
+        })
+        .eq('id', orderId);
+
+      if (cancelError) throw cancelError;
       
-      setOrders(orders.map(order => 
+      setOrders(prevOrders => prevOrders.map(order => 
         order.id === orderId 
           ? { 
               ...order, 
               status: 'cancelled',
-              cancellationReason: reason,
-              cancelledAt: new Date(),
-              cancelledBy: user.email
+              cancellation_reason: reason,
+              cancelled_at: new Date().toISOString(),
+              cancelled_by: user.email
             }
           : order
       ));
+
+      setShowCancelModal(false);
     } catch (error) {
       console.error('Error cancelling order:', error);
     }
+  };
+
+  const TrackingModal = ({ isOpen, onClose }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+        <div className="bg-white rounded-lg p-6 w-96">
+          <h2 className="text-xl font-bold mb-4">Enter Tracking ID</h2>
+          <input
+            type="text"
+            value={trackingId}
+            onChange={(e) => setTrackingId(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md mb-4"
+            placeholder="Enter tracking ID"
+          />
+          <div className="flex justify-end space-x-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleTrackingSubmit}
+              className="px-4 py-2 bg-[#BBA7FF] text-white rounded-lg hover:bg-[#A389FF]"
+            >
+              Submit
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -103,14 +221,23 @@ export default function AdminDashboard() {
 
   return (
     <div className="container mx-auto mt-10 p-6">
-       <div className="flex justify-between items-center mb-6">
+      
+      <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <Link 
-          href="/admin/upload"
-          className="bg-[#BBA7FF] text-white px-4 py-2 rounded-lg hover:bg-[#A389FF] transition-colors"
-        >
-          Bulk Upload Products
-        </Link>
+        <div className="space-x-4">
+          <Link 
+            href="/admin/approvals"
+            className="bg-[#BBA7FF] text-white px-4 py-2 rounded-lg hover:bg-[#A389FF] transition-colors"
+          >
+            Pending Approvals
+          </Link>
+          <Link 
+            href="/admin/upload"
+            className="bg-[#BBA7FF] text-white px-4 py-2 rounded-lg hover:bg-[#A389FF] transition-colors"
+          >
+            Bulk Upload Products
+          </Link>
+        </div>
       </div>
       <h1 className="text-3xl font-bold mb-6">Order Management</h1>
       <div className="overflow-x-auto">
@@ -128,10 +255,10 @@ export default function AdminDashboard() {
           <tbody className="divide-y divide-gray-200">
             {orders.map((order) => (
               <tr key={order.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium">#{order.id.slice(0, 8)}</td>
-                <td className="px-6 py-4">{order.userId}</td>
+                <td className="px-6 py-4 font-medium">#{order.order_number}</td>
+                <td className="px-6 py-4">{order.user?.email}</td>
                 <td className="px-6 py-4">
-                  {format(order.createdAt, 'MMM dd, yyyy HH:mm')}
+                  {format(new Date(order.created_at), 'MMM dd, yyyy HH:mm')}
                 </td>
                 <td className="px-6 py-4">₹{order.total.toFixed(2)}</td>
                 <td className="px-6 py-4">
@@ -144,10 +271,15 @@ export default function AdminDashboard() {
                   }`}>
                     {order.status || 'pending'}
                   </span>
-                  {order.status === 'cancelled' && order.cancellationReason && (
+                  {order.status === 'cancelled' && order.cancellation_reason && (
                     <p className="text-sm text-red-500 mt-1">
-                      Reason: {order.cancellationReason}
+                      Reason: {order.cancellation_reason}
                     </p>
+                  )}
+                  {order.status === 'shipped' && (
+                    <div className="text-sm text-gray-500 mt-1">
+                      Tracking ID: {order.tracking_id || 'Not available'}
+                    </div>
                   )}
                 </td>
                 <td className="px-6 py-4">
@@ -176,7 +308,7 @@ export default function AdminDashboard() {
                   )}
                   {order.status === 'cancelled' && (
                     <span className="text-sm text-gray-500">
-                      Cancelled by: {order.cancelledBy}
+                      Cancelled by: {order.cancelled_by}
                     </span>
                   )}
                   {order.status === 'delivered' && (
@@ -195,6 +327,14 @@ export default function AdminDashboard() {
         onClose={() => setShowCancelModal(false)}
         onConfirm={handleCancelOrder}
         orderId={selectedOrderId}
+      />
+      <TrackingModal
+        isOpen={showTrackingModal}
+        onClose={() => {
+          setShowTrackingModal(false);
+          setTrackingId('');
+          setSelectedOrderId(null);
+        }}
       />
     </div>
   );

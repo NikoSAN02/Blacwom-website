@@ -83,6 +83,28 @@ export default function CheckoutPage() {
     setAddress(prev => ({ ...prev, [name]: value }));
   };
 
+  const [userStatus, setUserStatus] = useState(null);
+
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      if (user) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('status, user_type')
+          .eq('id', user.id)
+          .single();
+  
+        if (!error && data) {
+          setUserStatus(data);
+        }
+      }
+    };
+  
+    checkUserStatus();
+  }, [user]);
+
+
+
   const handleCheckout = async (e) => {
     e.preventDefault();
     setError('');
@@ -145,7 +167,23 @@ export default function CheckoutPage() {
     }
   };
 
+  if (userStatus && userStatus.user_type !== 'customer' && userStatus.status !== 'approved') {
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+          <h2 className="text-xl font-semibold text-yellow-800 mb-2">Account Pending Approval</h2>
+          <p className="text-yellow-700">
+            Your account is currently pending approval. You'll be able to make purchases once your account is approved.
+            Please check your email for further instructions.
+          </p>
+        </div>
+      </div>
+    );
+  }
+  
   return (
+
+    
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <h1 className="text-3xl font-bold tracking-tight mb-8">Checkout</h1>
       {error && <p className="text-red-500 mb-6 p-4 bg-red-50 rounded-lg">{error}</p>}
