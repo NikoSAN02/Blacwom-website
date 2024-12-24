@@ -232,6 +232,12 @@ export default function AdminDashboard() {
             Pending Approvals
           </Link>
           <Link 
+            href="/admin/products"
+            className="bg-[#BBA7FF] text-white px-4 py-2 rounded-lg hover:bg-[#A389FF] transition-colors"
+          >
+            Manage Products
+          </Link>
+          <Link 
             href="/admin/upload"
             className="bg-[#BBA7FF] text-white px-4 py-2 rounded-lg hover:bg-[#A389FF] transition-colors"
           >

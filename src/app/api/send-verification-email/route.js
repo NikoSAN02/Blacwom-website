@@ -3,7 +3,7 @@ import nodemailer from 'nodemailer';
 
 export async function POST(req) {
   try {
-    const { to, userType, salonName, phoneNumber, orderNumber, isDeliveryNotification } = await req.json();
+    const { to, userType, salonName, phoneNumber, orderNumber, isDeliveryNotification, isApprovalNotification, approved } = await req.json();
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -12,6 +12,40 @@ export async function POST(req) {
         pass: process.env.GMAIL_APP_PASSWORD
       }
     });
+
+    // Handle approval notification
+    if (isApprovalNotification) {
+      const emailContent = approved 
+        ? `
+          Dear ${userType === 'salon' ? 'Salon Owner' : 'Wholesale Partner'},
+
+          Great news! Your account has been approved. You can now start placing orders on Glam Glide.
+
+          Thank you for choosing Glam Glide!
+
+          Best regards,
+          The Glam Glide Team
+        `
+        : `
+          Dear ${userType === 'salon' ? 'Salon Owner' : 'Wholesale Partner'},
+
+          We regret to inform you that your account registration could not be approved at this time.
+
+          If you believe this is an error, please contact our support team.
+
+          Best regards,
+          The Glam Glide Team
+        `;
+
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to,
+        subject: `Glam Glide Account ${approved ? 'Approved' : 'Not Approved'}`,
+        text: emailContent
+      });
+
+      return NextResponse.json({ success: true });
+    }
 
     // Handle delivery notification
     if (isDeliveryNotification) {
@@ -38,7 +72,7 @@ export async function POST(req) {
       return NextResponse.json({ success: true });
     }
 
-    // Original registration email logic
+    // Handle registration email
     const userEmailContent = userType === 'salon'
       ? `
         Thank you for registering your salon "${salonName}" with Glam Glide!

@@ -17,6 +17,7 @@ export default function AdminApprovals() {
 
   const fetchPendingUsers = async () => {
     try {
+      console.log('Fetching pending users...');
       const { data: { user }, error: userError } = await supabase.auth.getUser();
       if (userError) throw userError;
   
@@ -30,6 +31,7 @@ export default function AdminApprovals() {
       const { data, error } = await query;
       if (error) throw error;
   
+      console.log('Fetched pending users:', data);
       setPendingUsers(data || []);
     } catch (error) {
       console.error('Error in fetchPendingUsers:', error);
@@ -41,39 +43,76 @@ export default function AdminApprovals() {
 
   const handleApproval = async (userId, approved) => {
     try {
-      const { error } = await supabase
+      console.log('Starting approval process for:', userId, approved);
+  
+      // Log current user
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      console.log('Current user:', currentUser);
+  
+      // First get the user's details before updating
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+  
+      console.log('User to update:', user);
+      if (userError) {
+        console.error('Error fetching user:', userError);
+        throw userError;
+      }
+  
+      // Update user status with detailed error logging
+      const updateResult = await supabase
         .from('users')
         .update({ 
-          status: approved ? 'approved' : 'rejected',
-          updated_at: new Date().toISOString()
+          status: approved ? 'approved' : 'rejected'
         })
         .eq('id', userId);
-
-      if (error) throw error;
-      fetchPendingUsers();
-
-      // Send email notification about approval status
+  
+      console.log('Update result:', updateResult);
+  
+      if (updateResult.error) {
+        console.error('Update error:', updateResult.error);
+        throw updateResult.error;
+      }
+      // Send email notification
       try {
-        const user = pendingUsers.find(u => u.id === userId);
-        if (user) {
-          await fetch('/api/send-verification-email', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              to: user.email,
-              userType: user.user_type,
-              isApprovalNotification: true,
-              approved: approved
-            }),
-          });
+        console.log('Sending approval email to:', user.email);
+        const emailResponse = await fetch('/api/send-verification-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: user.email,
+            userType: user.user_type,
+            salonName: user.salon_name,
+            isApprovalNotification: true,
+            approved
+          }),
+        });
+  
+        console.log('Email response:', emailResponse.ok);
+        if (!emailResponse.ok) {
+          const errorData = await emailResponse.json();
+          console.error('Email error details:', errorData);
+          throw new Error('Failed to send approval email');
         }
       } catch (emailError) {
         console.error('Error sending approval email:', emailError);
       }
+  
+      // Update local state immediately
+      setPendingUsers(currentUsers => 
+        currentUsers.filter(pendingUser => pendingUser.id !== userId)
+      );
+  
+      // Then fetch fresh data
+      await fetchPendingUsers();
+  
     } catch (error) {
-      console.error('Error updating user status:', error);
+      console.error('Error in handleApproval:', error);
     }
   };
 
